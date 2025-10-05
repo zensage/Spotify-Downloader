@@ -1,0 +1,1580 @@
+{% extends "base.html" %}
+
+{% block extra_styles %}
+        /* Transitions */
+        .transition-smooth { transition: all 0.15s ease; }
+        .transition-transform { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        /* Search & Input */
+        .search-input { 
+            transition: border-color 0.15s ease; 
+        }
+        .search-input:focus { 
+            border-color: #8b5cf6; 
+        }
+        
+        /* Track Items */
+        .track-item { 
+            transition: background-color 0.15s ease;
+            cursor: pointer;
+        }
+        .track-item:hover { 
+            background-color: #f9fafb;
+        }
+        .track-playing {
+            background-color: #faf5ff !important;
+            border-color: #a78bfa !important;
+        }
+        
+        /* Animations */
+        .playing-indicator {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        .player-slide {
+            transform: translateY(150%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .player-slide.show { 
+            transform: translateY(0); 
+        }
+        
+        /* Progress Bar */
+        .progress-bar-container {
+            cursor: pointer;
+        }
+        .progress-bar-container:hover .progress-bar-inner {
+            height: 6px;
+        }
+        .progress-bar-inner {
+            height: 4px;
+            transition: height 0.2s ease;
+        }
+        
+        /* Dropdown */
+        .track-dropdown {
+            z-index: 1000;
+        }
+        
+        /* Search Suggestions */
+        .suggestion-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6;
+            transition: background-color 0.15s ease;
+        }
+        .suggestion-item:hover {
+            background-color: #f9fafb;
+        }
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+        .suggestion-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .suggestion-title {
+            font-weight: 500;
+            color: #111827;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .suggestion-artist {
+            color: #6b7280;
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* Skeleton Loaders */
+        .skeleton-track-item {
+            animation: skeletonFadeIn 0.3s ease-in-out;
+        }
+        .skeleton-cover,
+        .skeleton-title,
+        .skeleton-subtitle,
+        .skeleton-popularity,
+        .skeleton-duration,
+        .skeleton-actions {
+            background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+            background-size: 200% 100%;
+            animation: skeletonShimmer 1.5s ease-in-out infinite;
+        }
+        
+        /* Keyframes */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        @keyframes skeletonFadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes skeletonShimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        /* Staggered skeleton animations */
+        .skeleton-track-item:nth-child(1) { animation-delay: 0ms; }
+        .skeleton-track-item:nth-child(2) { animation-delay: 100ms; }
+        .skeleton-track-item:nth-child(3) { animation-delay: 200ms; }
+        .skeleton-track-item:nth-child(4) { animation-delay: 300ms; }
+        .skeleton-track-item:nth-child(5) { animation-delay: 400ms; }
+{% endblock %}
+
+{% block content %}
+    <!-- Main Content -->
+    <div class="main-content max-w-6xl mx-auto px-6 py-8 pb-24">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-4xl font-light text-gray-900 mb-2">
+                <i class="ph ph-music-note text-purple-500 mr-3"></i>Soundify
+            </h1>
+            <p class="text-gray-500 text-sm mb-8">Discover, listen, and download your favorite music</p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="text-center mb-12">
+            <!-- Search -->
+            <div class="max-w-2xl mx-auto">
+                <div class="relative">
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        placeholder="Search for songs, artists, or albums..."
+                        class="search-input w-full px-6 py-4 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none"
+                    >
+                    <button 
+                        id="searchBtn" 
+                        class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-purple-500 hover:bg-purple-600 rounded-xl flex items-center justify-center text-white transition-colors"
+                    >
+                        <i class="ph ph-magnifying-glass text-sm"></i>
+                    </button>
+                    
+                    <!-- Search Suggestions Dropdown -->
+                    <div id="searchSuggestions" class="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 hidden max-h-64 overflow-y-auto">
+                        <!-- Suggestions will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- Advanced Search Options -->
+                <div id="advancedSearch" class="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Genre Filter -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Genre</label>
+                            <select id="genreFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-purple-500">
+                                <option value="">Any Genre</option>
+                                <option value="pop">Pop</option>
+                                <option value="rock">Rock</option>
+                                <option value="hip-hop">Hip Hop</option>
+                                <option value="electronic">Electronic</option>
+                                <option value="jazz">Jazz</option>
+                                <option value="classical">Classical</option>
+                                <option value="country">Country</option>
+                                <option value="blues">Blues</option>
+                                <option value="reggae">Reggae</option>
+                                <option value="folk">Folk</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Mood Filter -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Mood</label>
+                            <select id="moodFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-purple-500">
+                                <option value="">Any Mood</option>
+                                <option value="happy">Happy</option>
+                                <option value="sad">Sad</option>
+                                <option value="energetic">Energetic</option>
+                                <option value="calm">Calm</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Year Filter -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Year</label>
+                            <select id="yearFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-purple-500">
+                                <option value="">Any Year</option>
+                                <option value="2024">2024</option>
+                                <option value="2023">2023</option>
+                                <option value="2022">2022</option>
+                                <option value="2021">2021</option>
+                                <option value="2020">2020</option>
+                                <option value="2019">2019</option>
+                                <option value="2018">2018</option>
+                                <option value="2017">2017</option>
+                                <option value="2016">2016</option>
+                                <option value="2015">2015</option>
+                                <option value="2010-2014">2010-2014</option>
+                                <option value="2000-2009">2000s</option>
+                                <option value="1990-1999">90s</option>
+                                <option value="1980-1989">80s</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Language Filter -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Language</label>
+                            <select id="languageFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-purple-500">
+                                <option value="">Any Language</option>
+                                <option value="en">English</option>
+                                <option value="es">Spanish</option>
+                                <option value="fr">French</option>
+                                <option value="de">German</option>
+                                <option value="it">Italian</option>
+                                <option value="pt">Portuguese</option>
+                                <option value="ja">Japanese</option>
+                                <option value="ko">Korean</option>
+                                <option value="zh">Chinese</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Popularity Range -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Popularity (0-100)</label>
+                            <div class="flex gap-2">
+                                <input type="number" id="popularityMin" placeholder="Min" min="0" max="100" class="w-1/2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-purple-500">
+                                <input type="number" id="popularityMax" placeholder="Max" min="0" max="100" class="w-1/2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-purple-500">
+                            </div>
+                        </div>
+                        
+                        <!-- Duration Range -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Duration (seconds)</label>
+                            <div class="flex gap-2">
+                                <input type="number" id="durationMin" placeholder="Min" min="0" class="w-1/2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-purple-500">
+                                <input type="number" id="durationMax" placeholder="Max" min="0" class="w-1/2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-purple-500">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="explicitFilter" class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                            <label for="explicitFilter" class="text-sm text-gray-700">Include explicit content</label>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="clearFilters" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+                                <i class="ph ph-x mr-1"></i>Clear All
+                            </button>
+                            <button id="toggleAdvanced" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+                                <i class="ph ph-caret-up mr-1"></i>Hide Options
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Advanced Search Toggle -->
+                <div class="mt-2 text-center">
+                    <button id="showAdvanced" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+                        <i class="ph ph-sliders mr-1"></i>Advanced Search Options
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Landing Page Features -->
+        <div id="landingTabs" class="mb-8">
+            <!-- Listen Section -->
+            <div class="mb-12">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-semibold text-gray-900 mb-4 flex items-center justify-center gap-3">
+                        <i class="ph ph-play-circle text-purple-500"></i>
+                        Listen to Music
+                    </h2>
+                    <p class="text-gray-600">Preview tracks with our built-in player</p>
+                </div>
+                
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="ph ph-play text-purple-600 text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Instant Preview</h3>
+                        <p class="text-gray-600 text-sm">Click any track to start playing instantly</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="ph ph-waveform text-green-600 text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-900 mb-2">High Quality</h3>
+                        <p class="text-gray-600 text-sm">30-second previews in high quality</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="ph ph-headphones text-blue-600 text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Floating Player</h3>
+                        <p class="text-gray-600 text-sm">Continue listening while browsing</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Download Section -->
+            <div class="mb-12">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-semibold text-gray-900 mb-4 flex items-center justify-center gap-3">
+                        <i class="ph ph-download-simple text-orange-500"></i>
+                        Download Music
+                    </h2>
+                    <p class="text-gray-600">Download your favorite tracks for offline listening</p>
+                </div>
+                
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="ph ph-download-simple text-orange-600 text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Queue Downloads</h3>
+                        <p class="text-gray-600 text-sm">Add multiple tracks to download queue</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="ph ph-clock text-red-600 text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Track Progress</h3>
+                        <p class="text-gray-600 text-sm">Monitor download progress in real-time</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="ph ph-check-circle text-green-600 text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Download History</h3>
+                        <p class="text-gray-600 text-sm">Keep track of all your downloads</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Discover Section -->
+            <div class="mb-12">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-semibold text-gray-900 mb-4 flex items-center justify-center gap-3">
+                        <i class="ph ph-sparkle text-purple-500"></i>
+                        Discover Music
+                    </h2>
+                    <p class="text-gray-600">Find new music based on your preferences</p>
+                </div>
+                
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="ph ph-sparkle text-purple-600 text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Smart Recommendations</h3>
+                        <p class="text-gray-600 text-sm">Get personalized track suggestions</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="ph ph-trend-up text-blue-600 text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Popular Tracks</h3>
+                        <p class="text-gray-600 text-sm">Discover what's trending right now</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                            <i class="ph ph-music-notes text-green-600 text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Genre Exploration</h3>
+                        <p class="text-gray-600 text-sm">Explore different music genres</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading -->
+        <div id="loading" class="hidden text-center py-20">
+            <div class="inline-flex items-center gap-3 text-gray-500">
+                <div class="w-5 h-5 border-2 border-gray-200 border-t-purple-500 rounded-full animate-spin"></div>
+                <span class="text-sm font-medium">Searching...</span>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="results" class="hidden">
+            <!-- Tab Navigation -->
+            <div class="mb-6">
+                <div class="inline-flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                    <button id="searchTab" class="px-2 md:px-4 py-2 text-sm font-medium text-gray-700 bg-white rounded-md shadow-sm transition-all" title="Search Results">
+                        <i class="ph ph-magnifying-glass md:mr-2"></i><span class="hidden md:inline">Search Results</span>
+                    </button>
+                    <button id="downloadsTab" class="px-2 md:px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-all" title="Downloads">
+                        <i class="ph ph-download-simple md:mr-2"></i><span class="hidden md:inline">Downloads</span>
+                        <span id="downloadBadge" class="hidden ml-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">0</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search Results Tab -->
+            <div id="searchResultsContent">
+                <!-- Recommendation Banner -->
+                <div id="recommendationBanner" class="hidden mb-6 p-4 bg-purple-50 border border-purple-200 rounded-xl">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <i class="ph ph-sparkle text-purple-600 text-lg"></i>
+                            <div>
+                                <h3 class="font-medium text-purple-900 text-sm">Showing Recommendations</h3>
+                                <p class="text-purple-700 text-xs">Based on: <span id="seedTrackName" class="font-medium"></span></p>
+                            </div>
+                        </div>
+                        <button onclick="backToSearch()" class="px-3 py-1.5 bg-white hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-medium transition-colors">
+                            <i class="ph ph-arrow-left mr-1"></i>Back to Search
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 class="text-xl font-medium text-gray-900 mb-1" id="resultsTitle">Search Results</h2>
+                                <p class="text-gray-500 text-sm">Click any track to play preview</p>
+                            </div>
+                            <div id="searchStats" class="text-right">
+                                <div class="text-sm text-gray-500">
+                                    <span id="returnedCount">0</span> tracks found
+                                </div>
+                                <!-- Download Status Indicator -->
+                                <div id="downloadStatusIndicator" class="hidden mt-2 flex items-center gap-2 text-sm text-blue-600">
+                                    <div class="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+                                    <span id="downloadStatusText">Downloading...</span>
+                                </div>
+                            </div>
+                        </div>
+                </div>
+                <div id="tracksList" class="space-y-2"></div>
+            </div>
+
+            <!-- Downloads Tab -->
+            <div id="downloadsContent" class="hidden">
+                <div class="mb-6">
+                    <h2 class="text-xl font-medium text-gray-900 mb-1">Download Manager</h2>
+                    <p class="text-gray-500 text-sm">Manage your downloads and view history</p>
+                </div>
+                
+                <!-- Queue -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold text-gray-800 flex items-center mb-4">
+                        <i class="ph ph-download-simple text-blue-500 mr-2"></i>
+                        Download Queue
+                        <span id="queueCount" class="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">0</span>
+                    </h3>
+                    <div id="downloadQueue" class="space-y-3"></div>
+                    <div id="emptyQueue" class="text-center py-12 text-gray-500">
+                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="ph ph-download-simple text-gray-400 text-2xl"></i>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-1">No downloads in queue</h3>
+                        <p class="text-sm">Start downloading tracks to see them here</p>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+                            <i class="ph ph-clock text-gray-500 mr-2"></i>
+                            Download History
+                            <span id="historyCount" class="ml-2 bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">0</span>
+                        </h3>
+                        <button onclick="clearHistory()" class="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm transition-colors">
+                            <i class="ph ph-trash text-xs mr-1"></i>
+                            Clear History
+                        </button>
+                    </div>
+                    <div id="downloadHistory" class="space-y-3"></div>
+                    <div id="emptyHistory" class="text-center py-12 text-gray-500">
+                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="ph ph-clock text-gray-400 text-2xl"></i>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-1">No download history</h3>
+                        <p class="text-sm">Completed downloads will appear here</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- No Results -->
+        <div id="noResults" class="hidden text-center py-20">
+            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="ph ph-magnifying-glass text-gray-400 text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-1">No results found</h3>
+            <p class="text-sm text-gray-500">Try a different search term</p>
+        </div>
+    </div>
+
+    <!-- Floating Minimal Player -->
+    <div id="player" class="player-slide fixed bottom-6 right-6 w-80 bg-white/95 border border-gray-200 rounded-2xl shadow-2xl backdrop-blur-md z-50">
+        <div class="p-3">
+            <div class="flex items-center gap-3 mb-3">
+                <img id="playerCover" src="" alt="" class="w-12 h-12 rounded-lg shadow-sm flex-shrink-0">
+                <div class="min-w-0 flex-1">
+                    <div id="playerTitle" class="font-medium text-gray-900 text-sm truncate"></div>
+                    <div id="playerArtist" class="text-gray-500 text-xs truncate"></div>
+                </div>
+                <button id="playPauseBtn" class="w-9 h-9 bg-purple-500 hover:bg-purple-600 rounded-full flex items-center justify-center text-white transition-colors flex-shrink-0">
+                    <i class="ph-fill ph-pause text-base"></i>
+                </button>
+                <button id="closePlayer" class="w-7 h-7 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                    <i class="ph ph-x text-base"></i>
+                </button>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="flex items-center gap-2">
+                <span id="currentTime" class="text-xs text-gray-400 font-mono" style="font-family: 'JetBrains Mono', monospace;">0:00</span>
+                <div class="flex-1 relative progress-bar-container" id="progressContainer">
+                    <div class="w-full bg-gray-200 rounded-full progress-bar-inner">
+                        <div id="progressBar" class="bg-purple-500 h-full rounded-full transition-all duration-200" style="width: 0%"></div>
+                    </div>
+                </div>
+                <span id="totalTime" class="text-xs text-gray-400 font-mono" style="font-family: 'JetBrains Mono', monospace;">0:30</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Track Details Modal -->
+    <div id="trackModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-gray-900">Track Details</h3>
+                    <button id="closeModal" class="text-gray-400 hover:text-gray-600">
+                        <i class="ph ph-x text-xl"></i>
+                    </button>
+                </div>
+                
+                <div id="modalContent" class="space-y-4">
+                    <!-- Content will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        // DOM Elements
+        const elements = {
+            searchInput: document.getElementById('searchInput'),
+            searchBtn: document.getElementById('searchBtn'),
+            loading: document.getElementById('loading'),
+            results: document.getElementById('results'),
+            noResults: document.getElementById('noResults'),
+            tracksList: document.getElementById('tracksList'),
+            returnedCount: document.getElementById('returnedCount'),
+            resultsTitle: document.getElementById('resultsTitle'),
+            recommendationBanner: document.getElementById('recommendationBanner'),
+            seedTrackName: document.getElementById('seedTrackName'),
+            landingTabs: document.getElementById('landingTabs'),
+            searchTab: document.getElementById('searchTab'),
+            downloadsTab: document.getElementById('downloadsTab'),
+            searchResultsContent: document.getElementById('searchResultsContent'),
+            downloadsContent: document.getElementById('downloadsContent'),
+            downloadBadge: document.getElementById('downloadBadge'),
+            player: document.getElementById('player'),
+            playerCover: document.getElementById('playerCover'),
+            playerTitle: document.getElementById('playerTitle'),
+            playerArtist: document.getElementById('playerArtist'),
+            playPauseBtn: document.getElementById('playPauseBtn'),
+            closePlayer: document.getElementById('closePlayer'),
+            progressBar: document.getElementById('progressBar'),
+            progressContainer: document.getElementById('progressContainer'),
+            currentTime: document.getElementById('currentTime'),
+            totalTime: document.getElementById('totalTime'),
+            downloadQueue: document.getElementById('downloadQueue'),
+            downloadHistory: document.getElementById('downloadHistory'),
+            emptyQueue: document.getElementById('emptyQueue'),
+            emptyHistory: document.getElementById('emptyHistory'),
+            queueCount: document.getElementById('queueCount'),
+            historyCount: document.getElementById('historyCount'),
+            downloadStatusIndicator: document.getElementById('downloadStatusIndicator'),
+            downloadStatusText: document.getElementById('downloadStatusText'),
+            showAdvanced: document.getElementById('showAdvanced'),
+            toggleAdvanced: document.getElementById('toggleAdvanced'),
+            advancedSearch: document.getElementById('advancedSearch'),
+            clearFilters: document.getElementById('clearFilters')
+        };
+        
+        // State
+        let currentAudio = null;
+        let currentTrack = null;
+        let isRecommendationMode = false;
+        let lastSearchQuery = '';
+        let currentTracks = [];
+        let downloadQueueData = [];
+        let downloadHistoryData = [];
+        let isDownloading = false;
+        let searchTimeout = null;
+        let currentSuggestions = [];
+        let isAdvancedOpen = false;
+        
+        // Event listeners
+        elements.searchBtn.addEventListener('click', () => {
+            hideSuggestions();
+            searchTracks();
+        });
+        elements.searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                hideSuggestions();
+                searchTracks();
+            }
+        });
+        
+        elements.closePlayer.addEventListener('click', hidePlayer);
+        elements.playPauseBtn.addEventListener('click', togglePlayPause);
+        elements.progressContainer.addEventListener('click', seekAudio);
+        
+        // Tab event listeners
+        elements.searchTab.addEventListener('click', switchToSearchTab);
+        elements.downloadsTab.addEventListener('click', switchToDownloadsTab);
+        
+        // Advanced search event listeners
+        elements.showAdvanced.addEventListener('click', () => {
+            elements.advancedSearch.classList.remove('hidden');
+            elements.showAdvanced.classList.add('hidden');
+            isAdvancedOpen = true;
+        });
+        
+        elements.toggleAdvanced.addEventListener('click', () => {
+            elements.advancedSearch.classList.add('hidden');
+            elements.showAdvanced.classList.remove('hidden');
+            isAdvancedOpen = false;
+        });
+        
+        elements.clearFilters.addEventListener('click', () => {
+            ['genreFilter', 'moodFilter', 'yearFilter', 'languageFilter', 'popularityMin', 'popularityMax', 'durationMin', 'durationMax'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            const explicitFilter = document.getElementById('explicitFilter');
+            if (explicitFilter) explicitFilter.checked = false;
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.track-dropdown') && !e.target.closest('[onclick*="toggleTrackMenu"]')) {
+                closeAllMenus();
+            }
+            if (!elements.searchInput.contains(e.target) && !document.getElementById('searchSuggestions').contains(e.target)) {
+                hideSuggestions();
+            }
+        });
+        
+        
+        // Tab switching
+        function switchToSearchTab() {
+            elements.searchTab.classList.add('bg-white', 'shadow-sm', 'text-gray-700');
+            elements.searchTab.classList.remove('text-gray-500');
+            elements.downloadsTab.classList.remove('bg-white', 'shadow-sm', 'text-gray-700');
+            elements.downloadsTab.classList.add('text-gray-500');
+            
+            elements.searchResultsContent.classList.remove('hidden');
+            elements.downloadsContent.classList.add('hidden');
+        }
+        
+        function switchToDownloadsTab() {
+            elements.downloadsTab.classList.add('bg-white', 'shadow-sm', 'text-gray-700');
+            elements.downloadsTab.classList.remove('text-gray-500');
+            elements.searchTab.classList.remove('bg-white', 'shadow-sm', 'text-gray-700');
+            elements.searchTab.classList.add('text-gray-500');
+            
+            elements.downloadsContent.classList.remove('hidden');
+            elements.searchResultsContent.classList.add('hidden');
+            
+            updateDownloadDisplay();
+        }
+        
+        // Search function
+        async function searchTracks() {
+            const query = elements.searchInput.value.trim();
+            if (!query) return;
+
+            lastSearchQuery = query;
+            isRecommendationMode = false;
+            
+            // Hide landing page and show search interface with skeleton cards
+            elements.landingTabs.classList.add('hidden');
+            elements.loading.classList.add('hidden');
+            elements.results.classList.remove('hidden');
+            elements.noResults.classList.add('hidden');
+            elements.recommendationBanner.classList.add('hidden');
+            
+            // Show skeleton cards while loading
+            displaySkeletonCards();
+            switchToSearchTab();
+
+            try {
+                const filters = getAdvancedFilters();
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, limit: 50, filters })
+                });
+
+                const data = await response.json();
+                
+                if (data.tracks && data.tracks.length > 0) {
+                    currentTracks = data.tracks;
+                    elements.resultsTitle.textContent = 'Search Results';
+                    displayTracks(data.tracks, data.total);
+                    elements.results.classList.remove('hidden');
+                    switchToSearchTab();
+                } else {
+                    elements.noResults.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                elements.noResults.classList.remove('hidden');
+            }
+        }
+        
+        // Get recommendations
+        async function getRecommendations(seedTrackId, trackName) {
+            elements.loading.classList.add('hidden');
+            elements.results.classList.remove('hidden');
+            elements.noResults.classList.add('hidden');
+            closeAllMenus();
+            
+            // Show skeleton cards while loading
+            displaySkeletonCards();
+            switchToSearchTab();
+            
+            try {
+                const response = await fetch('/recommendations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ seed_track_id: seedTrackId, limit: 50 })
+                });
+
+                const data = await response.json();
+                
+                if (data.tracks && data.tracks.length > 0) {
+                    currentTracks = data.tracks;
+                    isRecommendationMode = true;
+                    elements.seedTrackName.textContent = trackName;
+                    elements.resultsTitle.textContent = 'Recommended Tracks';
+                    elements.recommendationBanner.classList.remove('hidden');
+                    displayTracks(data.tracks, data.total);
+                    elements.results.classList.remove('hidden');
+                    switchToSearchTab();
+                } else {
+                    elements.noResults.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Recommendations error:', error);
+                elements.noResults.classList.remove('hidden');
+            }
+        }
+        
+        // Back to search
+        function backToSearch() {
+            if (lastSearchQuery) {
+                elements.searchInput.value = lastSearchQuery;
+                searchTracks();
+            } else {
+                showLandingPage();
+            }
+        }
+        
+        // Show landing page
+        function showLandingPage() {
+            elements.landingTabs.classList.remove('hidden');
+            elements.results.classList.add('hidden');
+            elements.noResults.classList.add('hidden');
+            elements.loading.classList.add('hidden');
+            elements.recommendationBanner.classList.add('hidden');
+        }
+        
+        // Download track
+        async function downloadTrack(trackName, trackArtist, trackData) {
+            const downloadId = Date.now().toString();
+            const downloadItem = {
+                id: downloadId,
+                name: trackName,
+                artist: trackArtist,
+                album: trackData?.album || '',
+                cover_url: trackData?.cover_url || null,
+                status: 'queued',
+                progress: 0,
+                startTime: new Date()
+            };
+            
+            downloadQueueData.push(downloadItem);
+            updateDownloadDisplay();
+            
+            // Start processing if not already downloading
+            if (!isDownloading) {
+                processDownloadQueue();
+            }
+        }
+        
+        // Process download queue
+        async function processDownloadQueue() {
+            if (isDownloading || downloadQueueData.length === 0) {
+                return;
+            }
+            
+            isDownloading = true;
+            const currentDownload = downloadQueueData.find(item => item.status === 'queued');
+            
+            if (!currentDownload) {
+                isDownloading = false;
+                return;
+            }
+            
+            // Show download status indicator
+            showDownloadStatus('Preparing download...');
+            
+            try {
+                updateDownloadItem(currentDownload.id, 'preparing', 10);
+                
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name: currentDownload.name, 
+                        artist: currentDownload.artist 
+                    })
+                });
+                
+                updateDownloadItem(currentDownload.id, 'fetching', 50);
+                showDownloadStatus('Downloading...');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.download_url) {
+                        updateDownloadItem(currentDownload.id, 'downloading', 80);
+                        showDownloadStatus('Finalizing download...');
+                        
+                        // Trigger download
+                        const a = document.createElement('a');
+                        a.href = data.download_url;
+                        a.download = data.filename;
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        updateDownloadItem(currentDownload.id, 'completed', 100);
+                        moveToHistory(currentDownload.id);
+                        showDownloadStatus('Download completed!');
+                        
+                        // Hide status after a short delay
+                        setTimeout(() => hideDownloadStatus(), 2000);
+                    } else {
+                        throw new Error('No download URL received');
+                    }
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Download failed');
+                }
+            } catch (error) {
+                console.error('Download error:', error);
+                updateDownloadItem(currentDownload.id, 'failed', 0);
+                showDownloadStatus('Download failed');
+                setTimeout(() => hideDownloadStatus(), 3000);
+            } finally {
+                isDownloading = false;
+                setTimeout(() => processDownloadQueue(), 1000);
+            }
+        }
+        
+        // Update download item
+        function updateDownloadItem(id, status, progress) {
+            const item = downloadQueueData.find(d => d.id === id);
+            if (item) {
+                item.status = status;
+                item.progress = progress;
+                updateDownloadDisplay();
+            }
+        }
+        
+        // Move to history
+        function moveToHistory(id) {
+            const itemIndex = downloadQueueData.findIndex(d => d.id === id);
+            if (itemIndex !== -1) {
+                const item = downloadQueueData[itemIndex];
+                item.endTime = new Date();
+                downloadHistoryData.unshift(item);
+                downloadQueueData.splice(itemIndex, 1);
+                updateDownloadDisplay();
+            }
+        }
+        
+        // Update download display
+        function updateDownloadDisplay() {
+            // Update download badge regardless of current tab
+            const totalDownloads = downloadQueueData.length;
+            elements.downloadBadge.textContent = totalDownloads;
+            
+            if (totalDownloads > 0) {
+                elements.downloadBadge.classList.remove('hidden');
+            } else {
+                elements.downloadBadge.classList.add('hidden');
+            }
+            
+            // Update queue (only if downloads tab is visible)
+            if (downloadQueueData.length === 0) {
+                elements.downloadQueue.innerHTML = '';
+                elements.emptyQueue.classList.remove('hidden');
+            } else {
+                elements.emptyQueue.classList.add('hidden');
+                elements.downloadQueue.innerHTML = downloadQueueData.map(item => `
+                    <div class="track-item flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 cursor-pointer group">
+                        <div class="relative">
+                            <img src="${item.cover_url || 'https://via.placeholder.com/48'}" alt="${item.name}" class="w-12 h-12 rounded-lg shadow-sm flex-shrink-0">
+                            <div class="absolute -top-1 -right-1 w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
+                                <i class="ph ${
+                                    item.status === 'queued' ? 'ph-clock text-white' :
+                                    item.status === 'preparing' ? 'ph-hourglass text-white' :
+                                    item.status === 'fetching' ? 'ph-download-simple text-white' :
+                                    item.status === 'downloading' ? 'ph-arrow-circle-down text-white' :
+                                    item.status === 'completed' ? 'ph-check-circle text-white' :
+                                    'ph-x-circle text-white'
+                                } text-xs"></i>
+                            </div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-gray-900 text-sm truncate flex items-center">
+                                ${item.name}
+                                <span class="text-xs font-medium px-2 py-0.5 rounded ml-2 ${
+                                    item.status === 'queued' ? 'bg-gray-100 text-gray-700' :
+                                    item.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
+                                    item.status === 'fetching' ? 'bg-blue-100 text-blue-700' :
+                                    item.status === 'downloading' ? 'bg-green-100 text-green-700' :
+                                    item.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                    'bg-red-100 text-red-700'
+                                }">${item.status}</span>
+                            </div>
+                            <div class="text-gray-500 text-xs truncate">${item.artist}</div>
+                            <div class="flex items-center gap-3 mt-1">
+                                <div class="flex items-center gap-1">
+                                    <span class="text-xs text-gray-400">Progress:</span>
+                                    <div class="w-16 bg-gray-200 rounded-full h-1">
+                                        <div class="bg-blue-500 h-1 rounded-full transition-all" style="width: ${item.progress}%"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-500 ml-1">${Math.floor(item.progress)}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-gray-400 text-xs font-mono" style="font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;">${Math.floor(item.progress)}%</div>
+                    </div>
+                `).join('');
+            }
+            
+            // Update history
+            if (downloadHistoryData.length === 0) {
+                elements.downloadHistory.innerHTML = '';
+                elements.emptyHistory.classList.remove('hidden');
+            } else {
+                elements.emptyHistory.classList.add('hidden');
+                elements.downloadHistory.innerHTML = downloadHistoryData.map(item => `
+                    <div class="track-item flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 cursor-pointer group bg-green-50">
+                        <div class="relative">
+                            <img src="${item.cover_url || 'https://via.placeholder.com/48'}" alt="${item.name}" class="w-12 h-12 rounded-lg shadow-sm flex-shrink-0">
+                            <div class="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                <i class="ph ph-check text-white text-xs"></i>
+                            </div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-gray-900 text-sm truncate flex items-center">
+                                ${item.name}
+                                <span class="text-xs font-medium px-2 py-0.5 rounded ml-2 bg-green-100 text-green-700">Completed</span>
+                            </div>
+                            <div class="text-gray-500 text-xs truncate">${item.artist}</div>
+                            <div class="flex items-center gap-3 mt-1">
+                                <div class="flex items-center gap-1">
+                                    <span class="text-xs text-gray-400">Status:</span>
+                                    <div class="w-16 bg-gray-200 rounded-full h-1">
+                                        <div class="bg-green-500 h-1 rounded-full transition-all" style="width: 100%"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-500 ml-1">100%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-gray-400 text-xs font-mono" style="font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;">100%</div>
+                    </div>
+                `).join('');
+            }
+            
+            // Update badges
+            elements.queueCount.textContent = totalDownloads;
+            elements.historyCount.textContent = downloadHistoryData.length;
+        }
+        
+        // Clear history
+        function clearHistory() {
+            downloadHistoryData = [];
+            updateDownloadDisplay();
+        }
+        
+        // Show download status indicator
+        function showDownloadStatus(message) {
+            if (elements.downloadStatusIndicator && elements.downloadStatusText) {
+                elements.downloadStatusText.textContent = message;
+                elements.downloadStatusIndicator.classList.remove('hidden');
+            }
+        }
+        
+        // Hide download status indicator
+        function hideDownloadStatus() {
+            if (elements.downloadStatusIndicator) {
+                elements.downloadStatusIndicator.classList.add('hidden');
+            }
+        }
+        
+        // Get advanced search filters
+        function getAdvancedFilters() {
+            return {
+                genre: document.getElementById('genreFilter').value,
+                mood: document.getElementById('moodFilter').value,
+                year: document.getElementById('yearFilter').value,
+                language: document.getElementById('languageFilter').value,
+                popularityMin: document.getElementById('popularityMin').value,
+                popularityMax: document.getElementById('popularityMax').value,
+                durationMin: document.getElementById('durationMin').value,
+                durationMax: document.getElementById('durationMax').value,
+                explicit: document.getElementById('explicitFilter').checked
+            };
+        }
+
+        // Display skeleton cards
+        function displaySkeletonCards() {
+            elements.tracksList.innerHTML = `
+                <div class="skeleton-track-item flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200">
+                    <div class="skeleton-cover w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="skeleton-title h-4 bg-gray-200 rounded animate-pulse mb-2" style="width: 70%;"></div>
+                        <div class="skeleton-subtitle h-3 bg-gray-200 rounded animate-pulse mb-2" style="width: 50%;"></div>
+                        <div class="skeleton-popularity h-3 bg-gray-200 rounded animate-pulse" style="width: 30%;"></div>
+                    </div>
+                    <div class="skeleton-duration w-8 h-3 bg-gray-200 rounded animate-pulse"></div>
+                    <div class="skeleton-actions w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+                
+                <div class="skeleton-track-item flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200">
+                    <div class="skeleton-cover w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="skeleton-title h-4 bg-gray-200 rounded animate-pulse mb-2" style="width: 85%;"></div>
+                        <div class="skeleton-subtitle h-3 bg-gray-200 rounded animate-pulse mb-2" style="width: 60%;"></div>
+                        <div class="skeleton-popularity h-3 bg-gray-200 rounded animate-pulse" style="width: 40%;"></div>
+                    </div>
+                    <div class="skeleton-duration w-8 h-3 bg-gray-200 rounded animate-pulse"></div>
+                    <div class="skeleton-actions w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+                
+                <div class="skeleton-track-item flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200">
+                    <div class="skeleton-cover w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="skeleton-title h-4 bg-gray-200 rounded animate-pulse mb-2" style="width: 75%;"></div>
+                        <div class="skeleton-subtitle h-3 bg-gray-200 rounded animate-pulse mb-2" style="width: 45%;"></div>
+                        <div class="skeleton-popularity h-3 bg-gray-200 rounded animate-pulse" style="width: 35%;"></div>
+                    </div>
+                    <div class="skeleton-duration w-8 h-3 bg-gray-200 rounded animate-pulse"></div>
+                    <div class="skeleton-actions w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+                
+                <div class="skeleton-track-item flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200">
+                    <div class="skeleton-cover w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="skeleton-title h-4 bg-gray-200 rounded animate-pulse mb-2" style="width: 90%;"></div>
+                        <div class="skeleton-subtitle h-3 bg-gray-200 rounded animate-pulse mb-2" style="width: 55%;"></div>
+                        <div class="skeleton-popularity h-3 bg-gray-200 rounded animate-pulse" style="width: 25%;"></div>
+                    </div>
+                    <div class="skeleton-duration w-8 h-3 bg-gray-200 rounded animate-pulse"></div>
+                    <div class="skeleton-actions w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+                
+                <div class="skeleton-track-item flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200">
+                    <div class="skeleton-cover w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="skeleton-title h-4 bg-gray-200 rounded animate-pulse mb-2" style="width: 65%;"></div>
+                        <div class="skeleton-subtitle h-3 bg-gray-200 rounded animate-pulse mb-2" style="width: 40%;"></div>
+                        <div class="skeleton-popularity h-3 bg-gray-200 rounded animate-pulse" style="width: 45%;"></div>
+                    </div>
+                    <div class="skeleton-duration w-8 h-3 bg-gray-200 rounded animate-pulse"></div>
+                    <div class="skeleton-actions w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+            `;
+        }
+
+        // Display tracks
+        function displayTracks(tracks, total) {
+            elements.tracksList.innerHTML = '';
+            elements.returnedCount.textContent = tracks.length;
+            
+            // Pre-warm cache for instant downloads
+            prewarmCache(tracks);
+            
+            tracks.forEach(track => {
+                const trackEl = document.createElement('div');
+                const isCurrentlyPlaying = currentTrack && currentTrack.id === track.id;
+                trackEl.className = `track-item flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 cursor-pointer group ${isCurrentlyPlaying ? 'track-playing' : ''}`;
+                trackEl.setAttribute('data-track-id', track.id);
+                
+                // Create popularity bar
+                const popularityBar = `<div class="w-16 bg-gray-200 rounded-full h-1">
+                    <div class="bg-green-500 h-1 rounded-full" style="width: ${track.popularity}%"></div>
+                </div>`;
+                
+                // Create explicit indicator
+                const explicitIcon = track.explicit ? '<i class="ph ph-warning text-red-500 text-xs ml-1" title="Explicit"></i>' : '';
+                
+                // Create no preview indicator
+                const noPreviewIcon = !track.preview_url ? '<i class="ph ph-shield-check text-orange-500 text-xs ml-1" title="Copyright protected - no preview available"></i>' : '';
+                
+                // Store track data
+                trackEl.dataset.trackData = JSON.stringify(track);
+                
+                trackEl.innerHTML = `
+                    <div class="relative">
+                        <img src="${track.cover_url || 'https://via.placeholder.com/48'}" alt="" class="w-12 h-12 rounded-lg shadow-sm flex-shrink-0">
+                        ${isCurrentlyPlaying ? '<div class="absolute -top-1 -right-1 w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center playing-indicator"><i class="ph ph-play text-white text-xs"></i></div>' : ''}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-medium text-gray-900 text-sm truncate flex items-center">
+                            ${track.name}${explicitIcon}${noPreviewIcon}
+                        </div>
+                        <div class="text-gray-500 text-xs truncate">${track.artist} • ${track.album}</div>
+                        <div class="flex items-center gap-3 mt-1">
+                            <div class="flex items-center gap-1">
+                                <span class="text-xs text-gray-400">Popularity:</span>
+                                ${popularityBar}
+                                <span class="text-xs text-gray-500 ml-1">${track.popularity}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-gray-400 text-xs font-mono" style="font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;">${Math.floor(track.duration / 60)}:${String(track.duration % 60).padStart(2, '0')}</div>
+                    <div class="flex items-center gap-1.5">
+                        <!-- Menu Button with Dropdown -->
+                        <div class="relative">
+                            <button onclick="event.stopPropagation(); toggleTrackMenu('${track.id}')" class="w-7 h-7 bg-gray-100 hover:bg-gray-200 rounded-md flex items-center justify-center text-gray-600 transition-all hover:scale-105" title="More Options">
+                                <i class="ph ph-dots-three text-xs"></i>
+                            </button>
+                            
+                            <!-- Dropdown Menu -->
+                            <div id="track-menu-${track.id}" class="track-dropdown absolute bottom-full right-0 mb-2 w-52 bg-white rounded-lg shadow-lg border border-gray-200 hidden z-50">
+                                <div class="py-2">
+                                    <button onclick="event.stopPropagation(); playTrackFromMenu('${track.id}'); closeTrackMenu('${track.id}')" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3 ${!track.preview_url ? 'opacity-50 cursor-not-allowed' : ''}" ${!track.preview_url ? 'disabled' : ''}>
+                                        <i class="ph ph-play text-sm"></i>
+                                        <span>Play Preview</span>
+                                    </button>
+                                    <button onclick="event.stopPropagation(); getRecommendationsFromMenu('${track.id}'); closeTrackMenu('${track.id}')" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3">
+                                        <i class="ph ph-sparkle text-sm"></i>
+                                        <span>Get Recommendations</span>
+                                    </button>
+                                    <button onclick="event.stopPropagation(); downloadTrackFromMenu('${track.id}'); closeTrackMenu('${track.id}')" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3">
+                                        <i class="ph ph-download-simple text-sm"></i>
+                                        <span>Download Track</span>
+                                    </button>
+                                    <button onclick="event.stopPropagation(); showTrackDetails('${track.id}'); closeTrackMenu('${track.id}')" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3">
+                                        <i class="ph ph-info text-sm"></i>
+                                        <span>View Details</span>
+                                    </button>
+                                    <a href="${track.external_urls.spotify}" target="_blank" onclick="event.stopPropagation(); closeTrackMenu('${track.id}')" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3 block">
+                                        <i class="ph ph-spotify-logo text-sm"></i>
+                                        <span>Open in Spotify</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                if (track.preview_url) {
+                    trackEl.addEventListener('click', () => playTrack(track));
+                }
+                
+                elements.tracksList.appendChild(trackEl);
+            });
+        }
+        
+        // Toggle track menu
+        function toggleTrackMenu(trackId) {
+            const menu = document.getElementById(`track-menu-${trackId}`);
+            const allMenus = document.querySelectorAll('.track-dropdown');
+            
+            // Close all other menus
+            allMenus.forEach(m => {
+                if (m.id !== `track-menu-${trackId}`) {
+                    m.classList.add('hidden');
+                }
+            });
+            
+            // Toggle current menu
+            menu.classList.toggle('hidden');
+        }
+        
+        function closeTrackMenu(trackId) {
+            const menu = document.getElementById(`track-menu-${trackId}`);
+            menu.classList.add('hidden');
+        }
+        
+        function closeAllMenus() {
+            const allMenus = document.querySelectorAll('.track-dropdown');
+            allMenus.forEach(m => m.classList.add('hidden'));
+        }
+        
+        function playTrackFromMenu(trackId) {
+            const trackEl = document.querySelector(`[data-track-id="${trackId}"]`);
+            if (trackEl) {
+                const trackData = JSON.parse(trackEl.dataset.trackData);
+                playTrack(trackData);
+            }
+        }
+        
+        function getRecommendationsFromMenu(trackId) {
+            const trackEl = document.querySelector(`[data-track-id="${trackId}"]`);
+            if (trackEl) {
+                const trackData = JSON.parse(trackEl.dataset.trackData);
+                getRecommendations(trackData.id, trackData.name);
+            }
+        }
+        
+        function downloadTrackFromMenu(trackId) {
+            const trackEl = document.querySelector(`[data-track-id="${trackId}"]`);
+            if (trackEl) {
+                const trackData = JSON.parse(trackEl.dataset.trackData);
+                downloadTrack(trackData.name, trackData.artist, trackData);
+            }
+        }
+        
+        // Play track
+        function playTrack(track) {
+            if (!track.preview_url) return;
+            
+            // If clicking the same track, toggle pause
+            if (currentAudio && currentTrack && currentTrack.id === track.id) {
+                togglePlayPause();
+                return;
+            }
+            
+            // Stop current audio if playing
+            if (currentAudio) {
+                currentAudio.pause();
+            }
+            
+            // Update current track
+            currentTrack = track;
+            
+            // Create new audio
+            currentAudio = new Audio(track.preview_url);
+            
+            // Update player UI
+            elements.playerCover.src = track.cover_url;
+            elements.playerTitle.textContent = track.name;
+            elements.playerArtist.textContent = track.artist;
+            
+            // Show player
+            showPlayer();
+            
+            // Update track item highlighting
+            document.querySelectorAll('.track-item').forEach(el => {
+                const trackId = el.getAttribute('data-track-id');
+                if (trackId === track.id) {
+                    el.classList.add('track-playing');
+                    const imgContainer = el.querySelector('.relative');
+                    if (!imgContainer.querySelector('.playing-indicator')) {
+                        const indicator = document.createElement('div');
+                        indicator.className = 'absolute -top-1 -right-1 w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center playing-indicator';
+                        indicator.innerHTML = '<i class="ph ph-play text-white text-xs"></i>';
+                        imgContainer.appendChild(indicator);
+                    }
+                } else {
+                    el.classList.remove('track-playing');
+                    const indicator = el.querySelector('.playing-indicator');
+                    if (indicator) indicator.remove();
+                }
+            });
+            
+            // Play audio
+            currentAudio.play();
+            updatePlayButton(false);
+            
+            // Audio event listeners
+            currentAudio.addEventListener('timeupdate', updateProgress);
+            currentAudio.addEventListener('ended', () => {
+                updatePlayButton(true);
+            });
+            currentAudio.addEventListener('loadedmetadata', () => {
+                elements.totalTime.textContent = formatDuration(Math.floor(currentAudio.duration));
+            });
+        }
+        
+        // Toggle play/pause
+        function togglePlayPause() {
+            if (!currentAudio) return;
+            
+            if (currentAudio.paused) {
+                currentAudio.play();
+                updatePlayButton(false);
+            } else {
+                currentAudio.pause();
+                updatePlayButton(true);
+            }
+        }
+        
+        // Update play button icons
+        function updatePlayButton(isPaused) {
+            const icon = isPaused ? 'ph-play' : 'ph-pause';
+            elements.playPauseBtn.querySelector('i').className = `ph-fill ${icon} text-base${isPaused ? ' ml-0.5' : ''}`;
+        }
+        
+        // Update progress bar
+        function updateProgress() {
+            if (!currentAudio) return;
+            
+            const progress = (currentAudio.currentTime / currentAudio.duration) * 100;
+            elements.progressBar.style.width = progress + '%';
+            elements.currentTime.textContent = formatDuration(Math.floor(currentAudio.currentTime));
+        }
+        
+        // Seek audio
+        function seekAudio(e) {
+            if (!currentAudio) return;
+            
+            const rect = elements.progressContainer.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+            currentAudio.currentTime = percent * currentAudio.duration;
+        }
+        
+        // Show/hide player
+        function showPlayer() {
+            elements.player.classList.add('show');
+        }
+        
+        function hidePlayer() {
+            if (currentAudio) {
+                currentAudio.pause();
+            }
+            elements.player.classList.remove('show');
+            currentTrack = null;
+            
+            // Remove all track playing states
+            document.querySelectorAll('.track-item').forEach(el => {
+                el.classList.remove('track-playing');
+                const indicator = el.querySelector('.playing-indicator');
+                if (indicator) indicator.remove();
+            });
+        }
+        
+        // Format duration
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // Search suggestions
+        async function getSearchSuggestions(query) {
+            if (query.length < 2) {
+                hideSuggestions();
+                return;
+            }
+            try {
+                const response = await fetch('/search-suggestions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, limit: 8 })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    currentSuggestions = data.suggestions || [];
+                    displaySuggestions(currentSuggestions);
+                }
+            } catch (error) {
+                console.log('Suggestions error:', error);
+                hideSuggestions();
+            }
+        }
+        
+        function displaySuggestions(suggestions) {
+            if (!suggestions || suggestions.length === 0) {
+                hideSuggestions();
+                return;
+            }
+            const searchSuggestions = document.getElementById('searchSuggestions');
+            searchSuggestions.innerHTML = suggestions.map(suggestion => `
+                <div class="suggestion-item" onclick="selectSuggestion('${suggestion.name.replace(/'/g, "\\'")}', '${suggestion.artist.replace(/'/g, "\\'")}')">
+                    <div class="suggestion-content">
+                        <span class="suggestion-title">${suggestion.name}</span>
+                        <span class="suggestion-artist">• ${suggestion.artist}</span>
+                    </div>
+                </div>
+            `).join('');
+            searchSuggestions.classList.remove('hidden');
+        }
+        
+        function hideSuggestions() {
+            const searchSuggestions = document.getElementById('searchSuggestions');
+            searchSuggestions.classList.add('hidden');
+        }
+        
+        function selectSuggestion(title, artist) {
+            elements.searchInput.value = `${title} ${artist}`;
+            hideSuggestions();
+            searchTracks();
+        }
+        
+        // Real-time search suggestions
+        elements.searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            // Hide suggestions if input is empty
+            if (query.length === 0) {
+                hideSuggestions();
+                return;
+            }
+            
+            // Debounce search suggestions
+            searchTimeout = setTimeout(() => {
+                getSearchSuggestions(query);
+            }, 300);
+        });
+        
+        // Show track details modal
+        async function showTrackDetails(trackId) {
+            try {
+                // Find the track in current results
+                let track = currentTracks.find(t => t.id === trackId);
+                
+                // If not found in currentTracks, try to find it in the DOM
+                if (!track) {
+                    const trackElement = document.querySelector(`[data-track-id="${trackId}"]`);
+                    if (trackElement) {
+                        // Try to get track data from the element's data attribute
+                        const trackData = trackElement.getAttribute('data-track-data');
+                        if (trackData) {
+                            track = JSON.parse(trackData);
+                        }
+                    }
+                }
+                
+                if (!track) {
+                    console.error('Track not found:', trackId);
+                    return;
+                }
+
+                const searchQuery = encodeURIComponent(track.name + ' ' + track.artist);
+                const releaseYear = track.album_release_date ? new Date(track.album_release_date).getFullYear() : 'Unknown';
+
+                const modalContent = document.getElementById('modalContent');
+                modalContent.innerHTML = `
+                    <div class="flex items-start gap-4 mb-6">
+                        <img src="${track.cover_url || '/static/default-cover.png'}" alt="" class="w-24 h-24 rounded-lg shadow-sm">
+                        <div class="flex-1">
+                            <h4 class="text-lg font-semibold text-gray-900 mb-1">${track.name}</h4>
+                            <p class="text-gray-600 mb-2">${track.artist}</p>
+                            <p class="text-sm text-gray-500">${track.album} (${releaseYear})</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">Duration</div>
+                            <div class="font-medium">${Math.floor(track.duration / 60)}:${String(track.duration % 60).padStart(2, '0')}</div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">Popularity</div>
+                            <div class="font-medium">${track.popularity}/100</div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">Album Tracks</div>
+                            <div class="font-medium">${track.album_total_tracks || 'Unknown'}</div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">Explicit</div>
+                            <div class="font-medium">${track.explicit ? 'Yes' : 'No'}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="border-t pt-4">
+                        <h4 class="text-sm font-medium text-gray-900 mb-3">Available on</h4>
+                        <div class="flex flex-wrap gap-2">
+                            <a href="${track.external_urls.spotify}" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg transition-colors text-sm">
+                                <i class="ph ph-spotify-logo text-green-600"></i>Spotify
+                            </a>
+                            <a href="https://music.apple.com/search?term=${searchQuery}" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors text-sm">
+                                <i class="ph ph-apple-logo text-gray-600"></i>Apple Music
+                            </a>
+                            <a href="https://www.youtube.com/results?search_query=${searchQuery}" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition-colors text-sm">
+                                <i class="ph ph-youtube-logo text-red-600"></i>YouTube
+                            </a>
+                            <a href="https://tidal.com/search?q=${searchQuery}" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-lg transition-colors text-sm">
+                                <i class="ph ph-waveform text-cyan-600"></i>Tidal
+                            </a>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('trackModal').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error showing track details:', error);
+                const modalContent = document.getElementById('modalContent');
+                modalContent.innerHTML = `
+                    <div class="text-center py-8">
+                        <i class="ph ph-warning text-red-500 text-2xl mb-2"></i>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Error Loading Track Details</h3>
+                        <p class="text-gray-500 text-sm">Unable to load track information. Please try again.</p>
+                    </div>
+                `;
+                document.getElementById('trackModal').classList.remove('hidden');
+            }
+        }
+
+        // Close modal
+        document.getElementById('closeModal').addEventListener('click', () => {
+            document.getElementById('trackModal').classList.add('hidden');
+        });
+
+        // Close modal on background click
+        document.getElementById('trackModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('trackModal')) {
+                document.getElementById('trackModal').classList.add('hidden');
+            }
+        });
+
+        // Pre-warm cache for instant downloads
+        async function prewarmCache(tracks) {
+            try {
+                // Only pre-warm if we have tracks and not too many
+                if (tracks && tracks.length > 0 && tracks.length <= 20) {
+                    const response = await fetch('/prewarm-cache', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tracks: tracks })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log(`Cache pre-warmed with ${data.cached_tracks} tracks`);
+                    }
+                }
+            } catch (error) {
+                console.log('Cache pre-warming failed:', error);
+            }
+        }
+
+        // Focus search input on load
+        window.addEventListener('load', () => {
+            elements.searchInput.focus();
+        });
+    </script>
+{% endblock %}
